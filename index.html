@@ -285,8 +285,10 @@ body {
 
   const seitenverhaeltnis = 595 / 842;
   const smartphone = window.matchMedia("(max-width: 680px)").matches;
-  const verfuegbareBreite = Math.max(260, buehne.clientWidth - 8);
-  const verfuegbareHoehe = Math.max(368, buehne.clientHeight - 8);
+  const ausgangsbreite = buehne.clientWidth || window.innerWidth;
+  const ausgangshoehe = buehne.clientHeight || window.innerHeight;
+  const verfuegbareBreite = Math.max(260, ausgangsbreite - 8);
+  const verfuegbareHoehe = Math.max(368, ausgangshoehe - 8);
   const maximaleSeitenbreite = smartphone
     ? verfuegbareBreite
     : verfuegbareBreite / 2;
@@ -323,6 +325,10 @@ body {
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
   );
+
+  window.setTimeout(function () {
+    window.dispatchEvent(new Event("resize"));
+  }, 100);
 
   const liegtAufSichtbarerSeite = function (clientX, clientY) {
     const bilder = document.querySelectorAll(
@@ -372,6 +378,7 @@ body {
 $(document).on(":passagedisplay", function () {
   window.setTimeout(window.initialisiereZeitungsbuch, 0);
 });
+
 </script><tw-passagedata pid="1" name="Unbenannter Abschnitt" tags="" position="800,400" size="100,100">&lt;div class=&quot;zeitung-app&quot; id=&quot;zeitung-app&quot;&gt;
   &lt;main class=&quot;buch-buehne&quot;&gt;
     &lt;div id=&quot;zeitungsbuch&quot;&gt;
