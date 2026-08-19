@@ -173,6 +173,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: visible;
+  touch-action: pinch-zoom;
   filter: drop-shadow(0 18px 28px rgba(0, 0, 0, .58));
 }
 
@@ -315,7 +316,7 @@ body {
     autoSize: true,
     showCover: false,
     mobileScrollSupport: false,
-    swipeDistance: 25,
+    swipeDistance: 8,
     clickEventForward: false,
     showPageCorners: false
   });
@@ -363,6 +364,11 @@ body {
   }, true);
 
   buehne.addEventListener("touchstart", function (ereignis) {
+    if (ereignis.touches.length >= 2) {
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
     if (
       ereignis.changedTouches.length > 0 &&
       !liegtAufSichtbarerSeite(
@@ -373,6 +379,12 @@ body {
       ereignis.stopPropagation();
     }
   }, true);
+
+  buehne.addEventListener("touchmove", function (ereignis) {
+    if (ereignis.touches.length >= 2) {
+      ereignis.stopImmediatePropagation();
+    }
+  }, { capture: true, passive: true });
 };
 
 $(document).on(":passagedisplay", function () {
