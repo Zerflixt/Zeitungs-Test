@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=01.01"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -143,6 +143,24 @@ body {
   justify-content: center;
   gap: 0;
   padding: 12px;
+}
+
+.versionsanzeige {
+  position: fixed;
+  z-index: 10000;
+  top: max(6px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  border: 1px solid rgba(240, 201, 142, .8);
+  border-radius: 999px;
+  padding: .3rem .7rem;
+  background: rgba(20, 15, 12, .88);
+  color: #fff1d8;
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .zeitung-kopf {
@@ -392,6 +410,7 @@ $(document).on(":passagedisplay", function () {
 });
 
 </script><tw-passagedata pid="1" name="Unbenannter Abschnitt" tags="" position="800,400" size="100,100">&lt;div class=&quot;zeitung-app&quot; id=&quot;zeitung-app&quot;&gt;
+  &lt;div class=&quot;versionsanzeige&quot;&gt;Version V01.01&lt;/div&gt;
   &lt;main class=&quot;buch-buehne&quot;&gt;
     &lt;div id=&quot;zeitungsbuch&quot;&gt;
       &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;
