@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=01.03"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=01.18"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -221,6 +221,38 @@ body {
   vertical-align: top;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.bewegte-zeitungs-rueckseite img {
+  transform: scaleX(-1);
+  filter: brightness(1.45) saturate(.55);
+  opacity: .48;
+}
+
+.bewegte-zeitungs-rueckseite {
+  background: #eee8dc !important;
+}
+
+.eigene-zeitungs-rueckseite {
+  position: absolute;
+  display: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 4;
+  background: #eee8dc;
+  pointer-events: none;
+}
+
+.eigene-zeitungs-rueckseite img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  object-fit: contain;
+  transform: scaleX(-1);
+  filter: brightness(1.45) saturate(.55);
+  opacity: .48;
 }
 
 .steuerung {
@@ -348,13 +380,192 @@ body {
     versionsanzeige.className = "versionsanzeige";
     document.body.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V01.03";
+  versionsanzeige.textContent = "Version V01.18";
 
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
   );
 
-  const blaettersteuerung = flip.flipController;
+  const blaettersteuerung = flip.getFlipController();
+  const renderer = flip.getRender();
+  const seitenebene = flip.getUI().getDistElement();
+  const seitenbilder = Array.from(
+    document.querySelectorAll("#zeitungsbuch .zeitungsseite img")
+  );
+  let bewegteRueckseite = null;
+  let rueckseitenAufraeumenTimer = null;
+  let eigeneRueckseite = null;
+  let eigeneRueckseiteBild = null;
+  let eigeneRueckseiteAufraeumenTimer = null;
+
+  const holeEigeneRueckseite = function () {
+    if (!eigeneRueckseite) {
+      eigeneRueckseite = document.createElement("div");
+      eigeneRueckseite.className = "eigene-zeitungs-rueckseite";
+      eigeneRueckseiteBild = document.createElement("img");
+      eigeneRueckseite.appendChild(eigeneRueckseiteBild);
+      seitenebene.appendChild(eigeneRueckseite);
+    }
+
+    return eigeneRueckseite;
+  };
+
+  const urspruenglichesZeichnen = blaettersteuerung.do.bind(
+    blaettersteuerung
+  );
+
+  blaettersteuerung.do = function (punkt) {
+    const ergebnis = urspruenglichesZeichnen(punkt);
+
+    if (
+      flip.getOrientation() !== "portrait" ||
+      this.calc === null ||
+      this.calc.getDirection() !== 1
+    ) {
+      return ergebnis;
+    }
+
+    const falzOben = this.calc.topIntersectPoint;
+    const falzUnten =
+      this.calc.sideIntersectPoint ||
+      this.calc.bottomIntersectPoint;
+
+    if (!falzOben || !falzUnten) {
+      return ergebnis;
+    }
+
+    const grenzen = renderer.getRect();
+    const breite = grenzen.pageWidth;
+    const hoehe = grenzen.height;
+    const rueckseite = holeEigeneRueckseite();
+    const quellbild = seitenbilder[
+      flip.getCurrentPageIndex() - 1
+    ];
+
+    if (quellbild) {
+      eigeneRueckseiteBild.src = quellbild.src;
+      eigeneRueckseiteBild.alt = "Innenseite beim Zurückblättern";
+    }
+
+    const obenX = Math.max(0, Math.min(
+      breite,
+      breite - falzOben.x
+    ));
+    const untenX = Math.max(0, Math.min(
+      breite,
+      breite - falzUnten.x
+    ));
+    const obenY = Math.max(0, Math.min(hoehe, falzOben.y));
+    const untenY = Math.max(0, Math.min(hoehe, falzUnten.y));
+
+    rueckseite.style.display = "block";
+    rueckseite.style.left = grenzen.left + "px";
+    rueckseite.style.top = grenzen.top + "px";
+    rueckseite.style.width = breite + "px";
+    rueckseite.style.height = hoehe + "px";
+    rueckseite.style.clipPath =
+      "polygon(" +
+      obenX + "px " + obenY + "px, " +
+      breite + "px 0px, " +
+      breite + "px " + hoehe + "px, " +
+      untenX + "px " + untenY + "px" +
+      ")";
+
+    return ergebnis;
+  };
+
+  const stelleBewegteRueckseiteWiederHer = function () {
+    if (!bewegteRueckseite) {
+      return;
+    }
+
+    bewegteRueckseite.bild.src = bewegteRueckseite.originalSrc;
+    bewegteRueckseite.bild.alt = bewegteRueckseite.originalAlt;
+    bewegteRueckseite.element.classList.remove(
+      "bewegte-zeitungs-rueckseite"
+    );
+    bewegteRueckseite = null;
+  };
+
+  const urspruenglicherStart = blaettersteuerung.start.bind(
+    blaettersteuerung
+  );
+
+  blaettersteuerung.start = function (punkt) {
+    window.clearTimeout(rueckseitenAufraeumenTimer);
+    stelleBewegteRueckseiteWiederHer();
+    const gestartet = urspruenglicherStart(punkt);
+
+    if (
+      gestartet &&
+      flip.getOrientation() === "portrait" &&
+      this.calc !== null &&
+      this.calc.getDirection() === 0 &&
+      this.flippingPage !== null
+    ) {
+      const element = this.flippingPage.getElement();
+      const bild = element.querySelector("img");
+      const geblaetterteSeite = seitenbilder[
+        flip.getCurrentPageIndex()
+      ];
+
+      if (bild && geblaetterteSeite) {
+        bewegteRueckseite = {
+          element: element,
+          bild: bild,
+          originalSrc: bild.src,
+          originalAlt: bild.alt
+        };
+        bild.src = geblaetterteSeite.src;
+        bild.alt = "Gespiegelte Innenseite";
+        element.classList.add("bewegte-zeitungs-rueckseite");
+      }
+    }
+
+    return gestartet;
+  };
+
+  const urspruenglichesFalten = blaettersteuerung.fold.bind(
+    blaettersteuerung
+  );
+
+  blaettersteuerung.fold = function (punkt) {
+    let richtung;
+
+    if (this.calc !== null) {
+      richtung = this.calc.getDirection();
+    } else {
+      richtung = this.getDirectionByPoint(
+        this.render.convertToBook(punkt)
+      );
+    }
+
+    if (
+      flip.getOrientation() === "portrait" &&
+      richtung === 1
+    ) {
+      const grenzen = this.getBoundsRect();
+      const falzX = grenzen.left + grenzen.pageWidth;
+      const oberkante = grenzen.top + 1;
+      const gefuehrtesX = Math.max(punkt.x, falzX + 1);
+      const oeffnung = Math.min(
+        1,
+        Math.max(
+          0,
+          (gefuehrtesX - falzX) /
+            (grenzen.pageWidth * 0.45)
+        )
+      );
+
+      punkt = {
+        x: gefuehrtesX,
+        y: oberkante + (punkt.y - oberkante) * oeffnung
+      };
+    }
+
+    return urspruenglichesFalten(punkt);
+  };
+
   blaettersteuerung.stopMove = function () {
     if (this.calc === null) {
       return;
@@ -366,8 +577,11 @@ body {
       ? grenzen.height
       : 0;
     const frueheBlaetterschwelle = grenzen.pageWidth * 0.72;
+    const blaetterRichtung = this.calc.getDirection();
+    const wirdUmgeblaettert =
+      position.x <= frueheBlaetterschwelle;
 
-    if (position.x <= frueheBlaetterschwelle) {
+    if (wirdUmgeblaettert) {
       this.animateFlippingTo(
         position,
         { x: -grenzen.pageWidth, y: zielY },
@@ -379,6 +593,29 @@ body {
         { x: grenzen.pageWidth, y: zielY },
         false
       );
+    }
+
+    window.clearTimeout(rueckseitenAufraeumenTimer);
+    rueckseitenAufraeumenTimer = window.setTimeout(
+      stelleBewegteRueckseiteWiederHer,
+      flip.getSettings().flippingTime + 100
+    );
+
+    const erreichtDeckblatt =
+      blaetterRichtung === 1 &&
+      wirdUmgeblaettert &&
+      flip.getCurrentPageIndex() - 1 === 0;
+
+    if (
+      blaetterRichtung === 1 &&
+      (!wirdUmgeblaettert || erreichtDeckblatt)
+    ) {
+      window.clearTimeout(eigeneRueckseiteAufraeumenTimer);
+      eigeneRueckseiteAufraeumenTimer = window.setTimeout(function () {
+        if (eigeneRueckseite) {
+          eigeneRueckseite.style.display = "none";
+        }
+      }, flip.getSettings().flippingTime + 100);
     }
   };
 
