@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=01.01"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=01.03"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -334,16 +334,53 @@ body {
     autoSize: true,
     showCover: false,
     mobileScrollSupport: false,
-    swipeDistance: 8,
+    swipeDistance: 25,
     clickEventForward: false,
     showPageCorners: false
   });
 
   window.zeitungsFlip = flip;
 
+  let versionsanzeige = document.getElementById("versionsanzeige");
+  if (!versionsanzeige) {
+    versionsanzeige = document.createElement("div");
+    versionsanzeige.id = "versionsanzeige";
+    versionsanzeige.className = "versionsanzeige";
+    document.body.appendChild(versionsanzeige);
+  }
+  versionsanzeige.textContent = "Version V01.03";
+
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
   );
+
+  const blaettersteuerung = flip.flipController;
+  blaettersteuerung.stopMove = function () {
+    if (this.calc === null) {
+      return;
+    }
+
+    const position = this.calc.getPosition();
+    const grenzen = this.getBoundsRect();
+    const zielY = this.calc.getCorner() === "bottom"
+      ? grenzen.height
+      : 0;
+    const frueheBlaetterschwelle = grenzen.pageWidth * 0.72;
+
+    if (position.x <= frueheBlaetterschwelle) {
+      this.animateFlippingTo(
+        position,
+        { x: -grenzen.pageWidth, y: zielY },
+        true
+      );
+    } else {
+      this.animateFlippingTo(
+        position,
+        { x: grenzen.pageWidth, y: zielY },
+        false
+      );
+    }
+  };
 
   window.setTimeout(function () {
     window.dispatchEvent(new Event("resize"));
@@ -410,7 +447,6 @@ $(document).on(":passagedisplay", function () {
 });
 
 </script><tw-passagedata pid="1" name="Unbenannter Abschnitt" tags="" position="800,400" size="100,100">&lt;div class=&quot;zeitung-app&quot; id=&quot;zeitung-app&quot;&gt;
-  &lt;div class=&quot;versionsanzeige&quot;&gt;Version V01.01&lt;/div&gt;
   &lt;main class=&quot;buch-buehne&quot;&gt;
     &lt;div id=&quot;zeitungsbuch&quot;&gt;
       &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;
