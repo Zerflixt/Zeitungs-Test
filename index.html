@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.05"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.06"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -422,7 +422,7 @@ body {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.05";
+  versionsanzeige.textContent = "Version V02.06";
 
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
@@ -759,28 +759,142 @@ body {
     }
   }, true);
 
+  let direktesFingerziehen = null;
+  const richtungsSchwelle = 7;
+
   buehne.addEventListener("touchstart", function (ereignis) {
     if (ereignis.touches.length >= 2) {
+      direktesFingerziehen = null;
       ereignis.stopImmediatePropagation();
       return;
     }
 
     if (
-      ereignis.changedTouches.length > 0 &&
-      !liegtImZeitungsAktionsbereich(
-        ereignis.changedTouches[0].clientX,
-        ereignis.changedTouches[0].clientY
-      )
+      flip.getOrientation() !== "portrait" ||
+      ereignis.changedTouches.length === 0
     ) {
-      ereignis.stopPropagation();
+      return;
     }
-  }, true);
+
+    const finger = ereignis.changedTouches[0];
+
+    if (!liegtImZeitungsAktionsbereich(
+      finger.clientX,
+      finger.clientY
+    )) {
+      direktesFingerziehen = null;
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
+    direktesFingerziehen = {
+      startClientX: finger.clientX,
+      startClientY: finger.clientY,
+      richtung: null,
+      startPunkt: null,
+      gestartet: false
+    };
+
+    ereignis.preventDefault();
+    ereignis.stopImmediatePropagation();
+  }, { capture: true, passive: false });
 
   buehne.addEventListener("touchmove", function (ereignis) {
     if (ereignis.touches.length >= 2) {
+      direktesFingerziehen = null;
       ereignis.stopImmediatePropagation();
+      return;
     }
-  }, { capture: true, passive: true });
+
+    if (
+      !direktesFingerziehen ||
+      ereignis.changedTouches.length === 0
+    ) {
+      return;
+    }
+
+    const finger = ereignis.changedTouches[0];
+    const verschiebungX =
+      finger.clientX - direktesFingerziehen.startClientX;
+    const verschiebungY =
+      finger.clientY - direktesFingerziehen.startClientY;
+
+    if (
+      direktesFingerziehen.richtung === null &&
+      Math.abs(verschiebungX) >= richtungsSchwelle
+    ) {
+      direktesFingerziehen.richtung =
+        verschiebungX < 0 ? 0 : 1;
+
+      const kannBlaettern =
+        direktesFingerziehen.richtung === 0
+          ? flip.getCurrentPageIndex() < flip.getPageCount() - 1
+          : flip.getCurrentPageIndex() > 0;
+
+      if (kannBlaettern) {
+        const grenzen = renderer.getRect();
+        const lokaleStartposition =
+          bedienoberflaeche.getMousePos(
+            direktesFingerziehen.startClientX,
+            direktesFingerziehen.startClientY
+          );
+        const startetOben =
+          lokaleStartposition.y <
+            grenzen.top + grenzen.height / 2;
+        const startPunkt = {
+          x: direktesFingerziehen.richtung === 0
+            ? grenzen.left + 2 * grenzen.pageWidth - 10
+            : 10,
+          y: startetOben
+            ? grenzen.top + 1
+            : grenzen.top + grenzen.height - 2
+        };
+
+        direktesFingerziehen.startPunkt = startPunkt;
+        direktesFingerziehen.gestartet =
+          blaettersteuerung.start(startPunkt);
+      }
+    }
+
+    if (
+      direktesFingerziehen.gestartet &&
+      direktesFingerziehen.startPunkt
+    ) {
+      blaettersteuerung.fold({
+        x: direktesFingerziehen.startPunkt.x + verschiebungX,
+        y: direktesFingerziehen.startPunkt.y + verschiebungY
+      });
+    }
+
+    ereignis.preventDefault();
+    ereignis.stopImmediatePropagation();
+  }, { capture: true, passive: false });
+
+  const beendeDirektesFingerziehen = function (ereignis) {
+    if (!direktesFingerziehen) {
+      return;
+    }
+
+    if (direktesFingerziehen.gestartet) {
+      blaettersteuerung.stopMove();
+    }
+
+    direktesFingerziehen = null;
+    ereignis.preventDefault();
+    ereignis.stopImmediatePropagation();
+  };
+
+  buehne.addEventListener(
+    "touchend",
+    beendeDirektesFingerziehen,
+    { capture: true, passive: false }
+  );
+
+  buehne.addEventListener(
+    "touchcancel",
+    beendeDirektesFingerziehen,
+    { capture: true, passive: false }
+  );
 };
 
 $(document).on(":passagedisplay", function () {
