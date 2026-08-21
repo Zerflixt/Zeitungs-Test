@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.06"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.07"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -205,10 +205,22 @@ body {
   height: calc(100vh - 54px);
   align-items: flex-start;
   justify-content: center;
-  overflow: visible;
+  overflow: hidden;
   padding-top: 1px;
   touch-action: pinch-zoom;
   filter: drop-shadow(0 18px 28px rgba(0, 0, 0, .58));
+}
+
+.zeitungs-zoom-ebene {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex: none;
+  align-items: flex-start;
+  justify-content: center;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 #zeitungsbuch {
@@ -333,7 +345,15 @@ body {
     padding: .5rem .75rem;
   }
 }
-</style><script role="script" id="twine-user-script" type="text/twine-javascript">window.initialisiereZeitungsbuch = function () {
+</style><script role="script" id="twine-user-script" type="text/twine-javascript">/*
+ * Eigener Zeitungscode für Twine/SugarCube.
+ *
+ * Wichtig für spätere Bearbeitungen in Twine:
+ * Nur dieser eigene Skriptbereich, das eigene Stylesheet und die Passagen
+ * gehören zu unserem Projektcode. Der weiter unten eingebettete, von Twine
+ * erzeugte SugarCube-Laufzeitcode darf nicht von Hand verändert werden.
+ */
+window.initialisiereZeitungsbuch = function () {
   const buchElement = document.getElementById("zeitungsbuch");
   const buehne = document.querySelector(".buch-buehne");
 
@@ -344,6 +364,16 @@ body {
     !window.St.PageFlip
   ) {
     return;
+  }
+
+  // Nur diese innere Ebene wird gezoomt; Statusbereich und Twine bleiben außen.
+  let zoomEbene = document.getElementById("zeitungs-zoom-ebene");
+  if (!zoomEbene) {
+    zoomEbene = document.createElement("div");
+    zoomEbene.id = "zeitungs-zoom-ebene";
+    zoomEbene.className = "zeitungs-zoom-ebene";
+    buchElement.parentNode.insertBefore(zoomEbene, buchElement);
+    zoomEbene.appendChild(buchElement);
   }
 
   if (window.zeitungsFlip) {
@@ -422,7 +452,7 @@ body {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.06";
+  versionsanzeige.textContent = "Version V02.07";
 
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
@@ -457,6 +487,95 @@ body {
   let eigeneRueckseiteBild = null;
   let eigeneRueckseiteAufraeumenTimer = null;
 
+  /*
+   * Zoomzustand der Zeitung. Die Blätterbibliothek selbst bleibt bei ihren
+   * unveränderten Seitenmaßen; vergrößert wird nur die umgebende Zoom-Ebene.
+   */
+  const minimalerZoom = 1;
+  const maximalerZoom = 4;
+  let zoomFaktor = 1;
+  let zoomVersatzX = 0;
+  let zoomVersatzY = 0;
+
+  const begrenzeZoomVersatz = function () {
+    if (zoomFaktor <= minimalerZoom) {
+      zoomFaktor = minimalerZoom;
+      zoomVersatzX = 0;
+      zoomVersatzY = 0;
+      return;
+    }
+
+    const minimaleXPosition =
+      buehne.clientWidth * (1 - zoomFaktor);
+    const minimaleYPosition =
+      buehne.clientHeight * (1 - zoomFaktor);
+
+    zoomVersatzX = Math.min(
+      0,
+      Math.max(minimaleXPosition, zoomVersatzX)
+    );
+    zoomVersatzY = Math.min(
+      0,
+      Math.max(minimaleYPosition, zoomVersatzY)
+    );
+  };
+
+  const zeichneZoom = function () {
+    begrenzeZoomVersatz();
+    zoomEbene.style.transform =
+      "translate3d(" +
+      zoomVersatzX + "px, " +
+      zoomVersatzY + "px, 0) scale(" +
+      zoomFaktor + ")";
+  };
+
+  // Vergrößert um einen Bildschirm-Punkt, damit dieser unter Maus/Fingern bleibt.
+  const zoomeUmBildschirmPunkt = function (
+    neuerZoom,
+    clientX,
+    clientY
+  ) {
+    const alterZoom = zoomFaktor;
+    const begrenzterZoom = Math.min(
+      maximalerZoom,
+      Math.max(minimalerZoom, neuerZoom)
+    );
+    const buehnenRechteck = buehne.getBoundingClientRect();
+    const punktX = clientX - buehnenRechteck.left;
+    const punktY = clientY - buehnenRechteck.top;
+
+    if (begrenzterZoom === minimalerZoom) {
+      zoomFaktor = minimalerZoom;
+      zoomVersatzX = 0;
+      zoomVersatzY = 0;
+      zeichneZoom();
+      return;
+    }
+
+    const faktorAenderung = begrenzterZoom / alterZoom;
+    zoomVersatzX =
+      punktX - (punktX - zoomVersatzX) * faktorAenderung;
+    zoomVersatzY =
+      punktY - (punktY - zoomVersatzY) * faktorAenderung;
+    zoomFaktor = begrenzterZoom;
+    zeichneZoom();
+  };
+
+  // Am PC zoomt das Mausrad auf die Position des Mauszeigers.
+  buehne.addEventListener("wheel", function (ereignis) {
+    const zoomSchritt = ereignis.deltaY < 0
+      ? 1.15
+      : 1 / 1.15;
+
+    zoomeUmBildschirmPunkt(
+      zoomFaktor * zoomSchritt,
+      ereignis.clientX,
+      ereignis.clientY
+    );
+    ereignis.preventDefault();
+  }, { passive: false });
+
+  // Erstellt bei Bedarf die transparente Innenseite fürs Zurückblättern.
   const holeEigeneRueckseite = function () {
     if (!eigeneRueckseite) {
       eigeneRueckseite = document.createElement("div");
@@ -480,6 +599,7 @@ body {
     blaettersteuerung
   );
 
+  // Zeichnet die eigene Rückseitenmaske entlang der berechneten Faltkante.
   blaettersteuerung.do = function (punkt) {
     const ergebnis = urspruenglichesZeichnen(punkt);
 
@@ -540,6 +660,7 @@ body {
     return ergebnis;
   };
 
+  // Setzt eine vorübergehend gespiegelte Bildseite wieder zurück.
   const stelleBewegteRueckseiteWiederHer = function () {
     if (!bewegteRueckseite) {
       return;
@@ -557,6 +678,7 @@ body {
     blaettersteuerung
   );
 
+  // Bereitet beim Vorwärtsblättern die sichtbare Innenseite des Blatts vor.
   blaettersteuerung.start = function (punkt) {
     window.clearTimeout(rueckseitenAufraeumenTimer);
     stelleBewegteRueckseiteWiederHer();
@@ -595,6 +717,7 @@ body {
     blaettersteuerung
   );
 
+  // Führt das Zurückblättern im Portraitmodus weich an der Falz entlang.
   blaettersteuerung.fold = function (punkt) {
     let richtung;
 
@@ -632,6 +755,7 @@ body {
     return urspruenglichesFalten(punkt);
   };
 
+  // Entscheidet beim Loslassen: fertigblättern oder zur Ausgangslage zurück.
   blaettersteuerung.stopMove = function () {
     if (this.calc === null) {
       return;
@@ -681,6 +805,7 @@ body {
     window.dispatchEvent(new Event("resize"));
   }, 100);
 
+  // Prüft, ob Maus oder Finger tatsächlich auf einer sichtbaren Seite liegen.
   const liegtAufSichtbarerSeite = function (clientX, clientY) {
     const bilder = document.querySelectorAll(
       "#zeitungsbuch .zeitungsseite img"
@@ -704,6 +829,7 @@ body {
     });
   };
 
+  // Erweitert am Handy den unsichtbaren Greifbereich fürs Zurückblättern.
   const liegtImRueckblaetterGreifbereich = function (
     clientX,
     clientY
@@ -750,7 +876,21 @@ body {
       liegtImRueckblaetterGreifbereich(clientX, clientY);
   };
 
+  let mausVerschieben = null;
+
   buehne.addEventListener("mousedown", function (ereignis) {
+    if (zoomFaktor > minimalerZoom && ereignis.button === 0) {
+      mausVerschieben = {
+        startClientX: ereignis.clientX,
+        startClientY: ereignis.clientY,
+        startVersatzX: zoomVersatzX,
+        startVersatzY: zoomVersatzY
+      };
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
     if (!liegtImZeitungsAktionsbereich(
       ereignis.clientX,
       ereignis.clientY
@@ -759,12 +899,83 @@ body {
     }
   }, true);
 
+  window.addEventListener("mousemove", function (ereignis) {
+    if (!mausVerschieben) {
+      return;
+    }
+
+    zoomVersatzX = mausVerschieben.startVersatzX +
+      ereignis.clientX - mausVerschieben.startClientX;
+    zoomVersatzY = mausVerschieben.startVersatzY +
+      ereignis.clientY - mausVerschieben.startClientY;
+    zeichneZoom();
+    ereignis.preventDefault();
+    ereignis.stopImmediatePropagation();
+  }, true);
+
+  window.addEventListener("mouseup", function (ereignis) {
+    if (!mausVerschieben) {
+      return;
+    }
+
+    mausVerschieben = null;
+    ereignis.preventDefault();
+    ereignis.stopImmediatePropagation();
+  }, true);
+
+  /*
+   * Direkte Touch-Steuerung im Portraitmodus:
+   * Die erste klare X-Bewegung bestimmt die Richtung. Danach hängt das
+   * virtuelle Blatt am Finger wie beim Ziehen mit gedrückter Maustaste.
+   */
   let direktesFingerziehen = null;
+  let zweiFingerZoom = null;
+  let fingerVerschieben = null;
   const richtungsSchwelle = 7;
+
+  const fingerAbstand = function (fingerA, fingerB) {
+    return Math.hypot(
+      fingerB.clientX - fingerA.clientX,
+      fingerB.clientY - fingerA.clientY
+    );
+  };
+
+  const fingerMittelpunkt = function (fingerA, fingerB) {
+    return {
+      x: (fingerA.clientX + fingerB.clientX) / 2,
+      y: (fingerA.clientY + fingerB.clientY) / 2
+    };
+  };
+
+  const beginneZweiFingerZoom = function (fingerA, fingerB) {
+    const mittelpunkt = fingerMittelpunkt(fingerA, fingerB);
+    const buehnenRechteck = buehne.getBoundingClientRect();
+    const punktX = mittelpunkt.x - buehnenRechteck.left;
+    const punktY = mittelpunkt.y - buehnenRechteck.top;
+
+    zweiFingerZoom = {
+      startAbstand: Math.max(1, fingerAbstand(fingerA, fingerB)),
+      startZoom: zoomFaktor,
+      inhaltX: (punktX - zoomVersatzX) / zoomFaktor,
+      inhaltY: (punktY - zoomVersatzY) / zoomFaktor
+    };
+  };
 
   buehne.addEventListener("touchstart", function (ereignis) {
     if (ereignis.touches.length >= 2) {
+      if (
+        direktesFingerziehen &&
+        direktesFingerziehen.gestartet
+      ) {
+        blaettersteuerung.stopMove();
+      }
       direktesFingerziehen = null;
+      fingerVerschieben = null;
+      beginneZweiFingerZoom(
+        ereignis.touches[0],
+        ereignis.touches[1]
+      );
+      ereignis.preventDefault();
       ereignis.stopImmediatePropagation();
       return;
     }
@@ -777,6 +988,19 @@ body {
     }
 
     const finger = ereignis.changedTouches[0];
+
+    if (zoomFaktor > minimalerZoom) {
+      fingerVerschieben = {
+        startClientX: finger.clientX,
+        startClientY: finger.clientY,
+        startVersatzX: zoomVersatzX,
+        startVersatzY: zoomVersatzY
+      };
+      direktesFingerziehen = null;
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
 
     if (!liegtImZeitungsAktionsbereich(
       finger.clientX,
@@ -802,6 +1026,51 @@ body {
   buehne.addEventListener("touchmove", function (ereignis) {
     if (ereignis.touches.length >= 2) {
       direktesFingerziehen = null;
+      fingerVerschieben = null;
+
+      if (!zweiFingerZoom) {
+        beginneZweiFingerZoom(
+          ereignis.touches[0],
+          ereignis.touches[1]
+        );
+      }
+
+      const fingerA = ereignis.touches[0];
+      const fingerB = ereignis.touches[1];
+      const mittelpunkt = fingerMittelpunkt(fingerA, fingerB);
+      const buehnenRechteck = buehne.getBoundingClientRect();
+      const punktX = mittelpunkt.x - buehnenRechteck.left;
+      const punktY = mittelpunkt.y - buehnenRechteck.top;
+      zoomFaktor = Math.min(
+        maximalerZoom,
+        Math.max(
+          minimalerZoom,
+          zweiFingerZoom.startZoom *
+            fingerAbstand(fingerA, fingerB) /
+            zweiFingerZoom.startAbstand
+        )
+      );
+      zoomVersatzX =
+        punktX - zweiFingerZoom.inhaltX * zoomFaktor;
+      zoomVersatzY =
+        punktY - zweiFingerZoom.inhaltY * zoomFaktor;
+      zeichneZoom();
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
+    if (
+      fingerVerschieben &&
+      ereignis.changedTouches.length > 0
+    ) {
+      const finger = ereignis.changedTouches[0];
+      zoomVersatzX = fingerVerschieben.startVersatzX +
+        finger.clientX - fingerVerschieben.startClientX;
+      zoomVersatzY = fingerVerschieben.startVersatzY +
+        finger.clientY - fingerVerschieben.startClientY;
+      zeichneZoom();
+      ereignis.preventDefault();
       ereignis.stopImmediatePropagation();
       return;
     }
@@ -870,7 +1139,27 @@ body {
     ereignis.stopImmediatePropagation();
   }, { capture: true, passive: false });
 
+  // Übergibt beim Loslassen an dieselbe Abschlusslogik wie die Maussteuerung.
   const beendeDirektesFingerziehen = function (ereignis) {
+    if (zweiFingerZoom) {
+      if (ereignis.touches.length < 2) {
+        zweiFingerZoom = null;
+      }
+      fingerVerschieben = null;
+      direktesFingerziehen = null;
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
+    if (fingerVerschieben) {
+      fingerVerschieben = null;
+      direktesFingerziehen = null;
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
     if (!direktesFingerziehen) {
       return;
     }
