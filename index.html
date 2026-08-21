@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.02"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.05"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -140,23 +140,26 @@ body {
   min-height: 100vh;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0;
-  padding: 12px;
+  padding: 0 12px 12px;
 }
 
 .versionsebene {
-  position: fixed;
+  position: relative;
   z-index: 100000;
-  inset: max(6px, env(safe-area-inset-top)) 0 auto;
   display: flex;
-  height: 0;
-  align-items: flex-start;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  flex: 0 0 42px;
+  align-items: center;
   justify-content: center;
-  overflow: visible;
+  border-bottom: 1px solid rgba(240, 201, 142, .28);
+  background: rgba(9, 8, 7, .58);
   pointer-events: none;
   isolation: isolate;
-  contain: layout style;
+  contain: layout paint style;
 }
 
 .versionsanzeige {
@@ -197,17 +200,19 @@ body {
 
 .buch-buehne {
   display: flex;
+  box-sizing: border-box;
   width: min(1190px, calc(100vw - 24px));
-  height: calc(100vh - 24px);
-  align-items: center;
+  height: calc(100vh - 54px);
+  align-items: flex-start;
   justify-content: center;
   overflow: visible;
+  padding-top: 1px;
   touch-action: pinch-zoom;
   filter: drop-shadow(0 18px 28px rgba(0, 0, 0, .58));
 }
 
 #zeitungsbuch {
-  margin: auto;
+  margin: 0 auto;
 }
 
 .zeitungsseite {
@@ -310,8 +315,8 @@ body {
 
 @media (max-width: 680px) {
   .zeitung-app {
-    gap: 8px;
-    padding: 8px;
+    gap: 0;
+    padding: 0 8px 8px;
   }
 
   .zeitung-kopf {
@@ -320,7 +325,7 @@ body {
 
   .buch-buehne {
     width: calc(100vw - 16px);
-    height: calc(100vh - 16px);
+    height: calc(100vh - 50px);
   }
 
   .steuerung button {
@@ -348,7 +353,17 @@ body {
   const seitenverhaeltnis = 595 / 842;
   const smartphone = window.matchMedia("(max-width: 680px)").matches;
   const ausgangsbreite = buehne.clientWidth || window.innerWidth;
-  const ausgangshoehe = buehne.clientHeight || window.innerHeight;
+  const buehnenStil = window.getComputedStyle(buehne);
+  const buehnenInnenabstandOben =
+    parseFloat(buehnenStil.paddingTop) || 0;
+  const buehnenInnenabstandUnten =
+    parseFloat(buehnenStil.paddingBottom) || 0;
+  const ausgangshoehe = Math.max(
+    0,
+    (buehne.clientHeight || window.innerHeight) -
+      buehnenInnenabstandOben -
+      buehnenInnenabstandUnten
+  );
   const verfuegbareBreite = Math.max(260, ausgangsbreite - 8);
   const verfuegbareHoehe = Math.max(368, ausgangshoehe - 8);
   const maximaleSeitenbreite = smartphone
@@ -384,12 +399,18 @@ body {
 
   window.zeitungsFlip = flip;
 
+  const zeitungsApp = document.getElementById("zeitung-app");
   let versionsebene = document.getElementById("versionsebene");
   if (!versionsebene) {
     versionsebene = document.createElement("div");
     versionsebene.id = "versionsebene";
     versionsebene.className = "versionsebene";
-    document.body.appendChild(versionsebene);
+  }
+  if (
+    zeitungsApp &&
+    versionsebene.parentNode !== zeitungsApp
+  ) {
+    zeitungsApp.insertBefore(versionsebene, buehne);
   }
 
   let versionsanzeige = document.getElementById("versionsanzeige");
@@ -401,7 +422,7 @@ body {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.02";
+  versionsanzeige.textContent = "Version V02.05";
 
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
@@ -409,6 +430,20 @@ body {
 
   const blaettersteuerung = flip.getFlipController();
   const renderer = flip.getRender();
+  const urspruenglicheGrenzenberechnung =
+    renderer.calculateBoundsRect.bind(renderer);
+
+  renderer.calculateBoundsRect = function () {
+    const ausrichtung = urspruenglicheGrenzenberechnung();
+
+    if (this.boundsRect) {
+      this.boundsRect.top = 0;
+    }
+
+    return ausrichtung;
+  };
+
+  flip.update();
   const bedienoberflaeche = flip.getUI();
   bedienoberflaeche.swipeTimeout = 500;
   bedienoberflaeche.swipeDistance = 30;
