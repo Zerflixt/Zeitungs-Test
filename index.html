@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.08"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.10"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -504,7 +504,7 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.08";
+  versionsanzeige.textContent = "Version V02.10";
 
   // Der Klangschalter bleibt außerhalb der Zeitung und bewegt sich nie mit.
   let tonschalter = document.getElementById("tonschalter");
@@ -823,16 +823,23 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "Twine Zeitung V0.1_assets/blaettern.m4a?v=02.08"
+    "Twine Zeitung V0.1_assets/blaettern.m4a?v=02.10"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
   let lautstaerkeAnimation = 0;
+  let letzterPapierklang = 0;
 
   const spielePapiergeraeusch = function (art) {
     if (!tonIstAn) {
       return;
     }
+
+    const aufrufzeit = window.performance.now();
+    if (aufrufzeit - letzterPapierklang < 100) {
+      return;
+    }
+    letzterPapierklang = aufrufzeit;
 
     try {
       if (aktiverBlaetterton) {
@@ -912,6 +919,19 @@ window.initialisiereZeitungsbuch = function () {
       // Falls ein Browser Audio blockiert, bleibt das Blättern unbeeinträchtigt.
     }
   };
+
+  /*
+   * In der Doppelseitenansicht übernimmt die Bibliothek die Fingersteuerung
+   * selbst. Ihr Zustand "flipping" ist dort der zuverlässige Klang-Auslöser.
+   */
+  flip.on("changeState", function (ereignis) {
+    if (
+      flip.getOrientation() === "landscape" &&
+      ereignis.data === "flipping"
+    ) {
+      spielePapiergeraeusch("abschluss");
+    }
+  });
 
   // Bereitet beim Vorwärtsblättern die sichtbare Innenseite des Blatts vor.
   blaettersteuerung.start = function (punkt) {
