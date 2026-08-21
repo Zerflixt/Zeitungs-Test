@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.07"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.08"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -175,6 +175,29 @@ body {
   line-height: 1;
   white-space: nowrap;
   transform: none;
+}
+
+.tonschalter {
+  position: absolute;
+  right: 12px;
+  border: 1px solid rgba(240, 201, 142, .58);
+  border-radius: 999px;
+  padding: .28rem .65rem;
+  background: rgba(20, 15, 12, .88);
+  color: #fff1d8;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.tonschalter:hover,
+.tonschalter:focus-visible {
+  border-color: #f0c98e;
+  background: rgba(55, 39, 27, .96);
 }
 
 .zeitung-kopf {
@@ -452,7 +475,48 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.07";
+  versionsanzeige.textContent = "Version V02.08";
+
+  // Der Klangschalter bleibt außerhalb der Zeitung und bewegt sich nie mit.
+  let tonschalter = document.getElementById("tonschalter");
+  if (!tonschalter) {
+    tonschalter = document.createElement("button");
+    tonschalter.id = "tonschalter";
+    tonschalter.className = "tonschalter";
+    tonschalter.type = "button";
+  }
+  if (tonschalter.parentNode !== versionsebene) {
+    versionsebene.appendChild(tonschalter);
+  }
+
+  let tonIstAn = true;
+  try {
+    tonIstAn = window.localStorage.getItem("zeitung-ton") !== "aus";
+  } catch (fehler) {
+    // Ohne lokalen Speicher bleibt der Ton nur für diesen Besuch eingeschaltet.
+  }
+
+  const aktualisiereTonschalter = function () {
+    tonschalter.textContent = tonIstAn ? "Ton: an" : "Ton: aus";
+    tonschalter.setAttribute("aria-pressed", String(tonIstAn));
+    tonschalter.title = tonIstAn
+      ? "Blättergeräusch ausschalten"
+      : "Blättergeräusch einschalten";
+  };
+
+  tonschalter.addEventListener("click", function () {
+    tonIstAn = !tonIstAn;
+    aktualisiereTonschalter();
+    try {
+      window.localStorage.setItem(
+        "zeitung-ton",
+        tonIstAn ? "an" : "aus"
+      );
+    } catch (fehler) {
+      // Der Schalter funktioniert auch dann für den aktuellen Besuch weiter.
+    }
+  });
+  aktualisiereTonschalter();
 
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
@@ -678,6 +742,89 @@ window.initialisiereZeitungsbuch = function () {
     blaettersteuerung
   );
 
+  /*
+   * Spielt die echte Zeitungsaufnahme passend zur Blätteranimation ab. Kleine
+   * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
+   */
+  const papierKlangVorlage = new Audio(
+    "Twine Zeitung V0.1_assets/blaettern.m4a?v=02.08"
+  );
+  papierKlangVorlage.preload = "auto";
+  let aktiverBlaetterton = null;
+  let lautstaerkeAnimation = 0;
+
+  const spielePapiergeraeusch = function (art) {
+    if (!tonIstAn) {
+      return;
+    }
+
+    try {
+      if (aktiverBlaetterton) {
+        aktiverBlaetterton.pause();
+      }
+      window.cancelAnimationFrame(lautstaerkeAnimation);
+
+      const animationsDauer = flip.getSettings().flippingTime / 1000;
+      const dauer = art === "zurueck"
+        ? animationsDauer * 0.72
+        : animationsDauer;
+      const hoechsteLautstaerke =
+        (art === "zurueck" ? 0.42 : 0.64) *
+        (0.94 + Math.random() * 0.12);
+      const ton = papierKlangVorlage.cloneNode(true);
+      const startzeit = window.performance.now();
+
+      ton.currentTime = 0;
+      ton.volume = 0;
+      ton.playbackRate =
+        (art === "zurueck" ? 1.22 : 1.08) *
+        (0.98 + Math.random() * 0.04);
+      aktiverBlaetterton = ton;
+
+      const folgeDerBlaetterbewegung = function (jetzt) {
+        if (aktiverBlaetterton !== ton) {
+          return;
+        }
+
+        const fortschritt = Math.min(
+          1,
+          (jetzt - startzeit) / (dauer * 1000)
+        );
+
+        // Leise beginnen, in der Mitte am stärksten, anschließend ausklingen.
+        ton.volume = Math.min(
+          1,
+          hoechsteLautstaerke *
+            Math.pow(Math.sin(Math.PI * fortschritt), 0.85)
+        );
+
+        if (fortschritt < 1 && !ton.paused) {
+          lautstaerkeAnimation = window.requestAnimationFrame(
+            folgeDerBlaetterbewegung
+          );
+        } else {
+          ton.pause();
+          ton.volume = 0;
+          if (aktiverBlaetterton === ton) {
+            aktiverBlaetterton = null;
+          }
+        }
+      };
+
+      const abspielen = ton.play();
+      if (abspielen && typeof abspielen.catch === "function") {
+        abspielen.catch(function () {
+          // Falls ein Browser Audio blockiert, bleibt das Blättern ungestört.
+        });
+      }
+      lautstaerkeAnimation = window.requestAnimationFrame(
+        folgeDerBlaetterbewegung
+      );
+    } catch (fehler) {
+      // Falls ein Browser Audio blockiert, bleibt das Blättern unbeeinträchtigt.
+    }
+  };
+
   // Bereitet beim Vorwärtsblättern die sichtbare Innenseite des Blatts vor.
   blaettersteuerung.start = function (punkt) {
     window.clearTimeout(rueckseitenAufraeumenTimer);
@@ -770,6 +917,10 @@ window.initialisiereZeitungsbuch = function () {
     const blaetterRichtung = this.calc.getDirection();
     const wirdUmgeblaettert =
       position.x <= frueheBlaetterschwelle;
+
+    spielePapiergeraeusch(
+      wirdUmgeblaettert ? "abschluss" : "zurueck"
+    );
 
     if (wirdUmgeblaettert) {
       this.animateFlippingTo(
