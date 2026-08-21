@@ -226,6 +226,7 @@ body {
   box-sizing: border-box;
   width: min(1190px, calc(100vw - 24px));
   height: calc(100vh - 54px);
+  height: calc(100dvh - 54px);
   align-items: flex-start;
   justify-content: center;
   overflow: hidden;
@@ -361,6 +362,7 @@ body {
   .buch-buehne {
     width: calc(100vw - 16px);
     height: calc(100vh - 50px);
+    height: calc(100dvh - 50px);
   }
 
   .steuerung button {
@@ -404,34 +406,61 @@ window.initialisiereZeitungsbuch = function () {
   }
 
   const seitenverhaeltnis = 595 / 842;
-  const smartphone = window.matchMedia("(max-width: 680px)").matches;
-  const ausgangsbreite = buehne.clientWidth || window.innerWidth;
-  const buehnenStil = window.getComputedStyle(buehne);
-  const buehnenInnenabstandOben =
-    parseFloat(buehnenStil.paddingTop) || 0;
-  const buehnenInnenabstandUnten =
-    parseFloat(buehnenStil.paddingBottom) || 0;
-  const ausgangshoehe = Math.max(
-    0,
-    (buehne.clientHeight || window.innerHeight) -
-      buehnenInnenabstandOben -
-      buehnenInnenabstandUnten
-  );
-  const verfuegbareBreite = Math.max(260, ausgangsbreite - 8);
-  const verfuegbareHoehe = Math.max(368, ausgangshoehe - 8);
-  const maximaleSeitenbreite = smartphone
-    ? verfuegbareBreite
-    : verfuegbareBreite / 2;
-  const seitenbreite = Math.floor(
-    Math.min(
-      595,
-      maximaleSeitenbreite,
-      verfuegbareHoehe * seitenverhaeltnis
-    )
-  );
-  const seitenhoehe = Math.floor(
-    seitenbreite / seitenverhaeltnis
-  );
+
+  // Nutzt unter mobilen Browserleisten nur den wirklich sichtbaren Restplatz.
+  const passeBuehnenhoeheAn = function () {
+    const sichtbareHoehe =
+      window.visualViewport &&
+      Number.isFinite(window.visualViewport.height)
+        ? window.visualViewport.height
+        : window.innerHeight;
+    const buehnenOberkante = buehne.getBoundingClientRect().top;
+
+    buehne.style.height = Math.max(
+      180,
+      Math.floor(sichtbareHoehe - buehnenOberkante - 8)
+    ) + "px";
+  };
+
+  passeBuehnenhoeheAn();
+
+  // Berechnet die Seitengröße auch nach einem Drehen des Smartphones neu.
+  const berechneSeitenmasse = function () {
+    const smartphone = window.matchMedia("(max-width: 680px)").matches;
+    const ausgangsbreite = buehne.clientWidth || window.innerWidth;
+    const buehnenStil = window.getComputedStyle(buehne);
+    const buehnenInnenabstandOben =
+      parseFloat(buehnenStil.paddingTop) || 0;
+    const buehnenInnenabstandUnten =
+      parseFloat(buehnenStil.paddingBottom) || 0;
+    const ausgangshoehe = Math.max(
+      0,
+      (buehne.clientHeight || window.innerHeight) -
+        buehnenInnenabstandOben -
+        buehnenInnenabstandUnten
+    );
+    const verfuegbareBreite = Math.max(180, ausgangsbreite - 8);
+    const verfuegbareHoehe = Math.max(180, ausgangshoehe - 8);
+    const maximaleSeitenbreite = smartphone
+      ? verfuegbareBreite
+      : verfuegbareBreite / 2;
+    const breite = Math.floor(
+      Math.min(
+        595,
+        maximaleSeitenbreite,
+        verfuegbareHoehe * seitenverhaeltnis
+      )
+    );
+
+    return {
+      breite: breite,
+      hoehe: Math.floor(breite / seitenverhaeltnis)
+    };
+  };
+
+  const ersteSeitenmasse = berechneSeitenmasse();
+  const seitenbreite = ersteSeitenmasse.breite;
+  const seitenhoehe = ersteSeitenmasse.hoehe;
 
   const flip = new window.St.PageFlip(buchElement, {
     width: seitenbreite,
@@ -625,6 +654,53 @@ window.initialisiereZeitungsbuch = function () {
     zeichneZoom();
   };
 
+  /*
+   * Beim Drehen ändern sich Breite, Höhe und Ein-/Doppelseitenansicht zugleich.
+   * Deshalb werden Blattmaße und Zoom nach einer kurzen Beruhigungszeit neu
+   * gesetzt, sobald der Browser seine endgültigen Displaymaße gemeldet hat.
+   */
+  if (window.zeitungsAnsichtHandler) {
+    window.removeEventListener(
+      "resize",
+      window.zeitungsAnsichtHandler
+    );
+    window.removeEventListener(
+      "orientationchange",
+      window.zeitungsAnsichtHandler
+    );
+  }
+
+  let ansichtTimer = 0;
+  const passeZeitungAnDisplayAn = function () {
+    window.clearTimeout(ansichtTimer);
+    ansichtTimer = window.setTimeout(function () {
+      passeBuehnenhoeheAn();
+      const neueMasse = berechneSeitenmasse();
+      const einstellungen = flip.getSettings();
+
+      einstellungen.width = neueMasse.breite;
+      einstellungen.height = neueMasse.hoehe;
+      zoomFaktor = minimalerZoom;
+      zoomVersatzX = 0;
+      zoomVersatzY = 0;
+      zeichneZoom();
+      flip.update();
+
+      // Android benötigt nach dem Drehen gelegentlich noch einen zweiten Takt.
+      window.requestAnimationFrame(function () {
+        flip.update();
+        zeichneZoom();
+      });
+    }, 180);
+  };
+
+  window.zeitungsAnsichtHandler = passeZeitungAnDisplayAn;
+  window.addEventListener("resize", passeZeitungAnDisplayAn);
+  window.addEventListener(
+    "orientationchange",
+    passeZeitungAnDisplayAn
+  );
+
   // Am PC zoomt das Mausrad auf die Position des Mauszeigers.
   buehne.addEventListener("wheel", function (ereignis) {
     const zoomSchritt = ereignis.deltaY < 0
@@ -786,17 +862,29 @@ window.initialisiereZeitungsbuch = function () {
           return;
         }
 
+        const sichereZeit = Number.isFinite(jetzt)
+          ? jetzt
+          : window.performance.now();
+        const sichereDauer = Number.isFinite(dauer) && dauer > 0
+          ? dauer
+          : 0.9;
         const fortschritt = Math.min(
           1,
-          (jetzt - startzeit) / (dauer * 1000)
+          Math.max(
+            0,
+            (sichereZeit - startzeit) / (sichereDauer * 1000)
+          )
         );
 
         // Leise beginnen, in der Mitte am stärksten, anschließend ausklingen.
-        ton.volume = Math.min(
+        const neueLautstaerke = Math.min(
           1,
           hoechsteLautstaerke *
             Math.pow(Math.sin(Math.PI * fortschritt), 0.85)
         );
+        ton.volume = Number.isFinite(neueLautstaerke)
+          ? neueLautstaerke
+          : 0;
 
         if (fortschritt < 1 && !ton.paused) {
           lautstaerkeAnimation = window.requestAnimationFrame(
