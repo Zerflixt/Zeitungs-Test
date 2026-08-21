@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.01"></script>
+	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.02"></script>
 	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -151,6 +151,7 @@ body {
   inset: max(6px, env(safe-area-inset-top)) 0 auto;
   display: flex;
   height: 0;
+  align-items: flex-start;
   justify-content: center;
   overflow: visible;
   pointer-events: none;
@@ -400,7 +401,7 @@ body {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.01";
+  versionsanzeige.textContent = "Version V02.02";
 
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
@@ -408,6 +409,9 @@ body {
 
   const blaettersteuerung = flip.getFlipController();
   const renderer = flip.getRender();
+  const bedienoberflaeche = flip.getUI();
+  bedienoberflaeche.swipeTimeout = 500;
+  bedienoberflaeche.swipeDistance = 30;
   const seitenebene = flip.getUI().getDistElement();
   const seitenbilder = Array.from(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite img")
