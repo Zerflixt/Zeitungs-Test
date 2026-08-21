@@ -2,7 +2,7 @@
 <html data-init="no-js">
 <head>
 <meta charset="UTF-8" />
-<title>Twine Zeitung V0.1</title>
+<title>Wild am Sonntag - Ausgabe 23</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="application-name" content="SugarCube" />
 <meta name="version" content="2.37.3" />
@@ -104,8 +104,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="Twine Zeitung V0.1_assets/page-flip.browser.min.js?v=02.10"></script>
-	<tw-storydata name="Twine Zeitung V0.1" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
+	<script src="assets/page-flip.browser.min.js?v=02.12"></script>
+	<tw-storydata name="Wild am Sonntag - Ausgabe 23" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -198,6 +198,11 @@ body {
 .tonschalter:focus-visible {
   border-color: #f0c98e;
   background: rgba(55, 39, 27, .96);
+}
+
+.raetselknopf {
+  right: auto;
+  left: 12px;
 }
 
 .zeitung-kopf {
@@ -379,6 +384,7 @@ body {
  * erzeugte SugarCube-Laufzeitcode darf nicht von Hand verändert werden.
  */
 window.initialisiereZeitungsbuch = function () {
+  document.title = "Wild am Sonntag - Ausgabe 23";
   const buchElement = document.getElementById("zeitungsbuch");
   const buehne = document.querySelector(".buch-buehne");
 
@@ -472,7 +478,7 @@ window.initialisiereZeitungsbuch = function () {
     usePortrait: true,
     startPage: 0,
     autoSize: true,
-    showCover: false,
+    showCover: true,
     mobileScrollSupport: false,
     swipeDistance: 25,
     clickEventForward: false,
@@ -504,7 +510,20 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.10";
+  versionsanzeige.textContent = "Version V02.12";
+
+  // Dieser Knopf bleibt wie die Versionsanzeige außerhalb der Blätterfläche.
+  let raetselknopf = document.getElementById("raetselknopf");
+  if (!raetselknopf) {
+    raetselknopf = document.createElement("button");
+    raetselknopf.id = "raetselknopf";
+    raetselknopf.className = "tonschalter raetselknopf";
+    raetselknopf.type = "button";
+    raetselknopf.textContent = "Zum Rätsel";
+  }
+  if (raetselknopf.parentNode !== versionsebene) {
+    versionsebene.appendChild(raetselknopf);
+  }
 
   // Der Klangschalter bleibt außerhalb der Zeitung und bewegt sich nie mit.
   let tonschalter = document.getElementById("tonschalter");
@@ -550,6 +569,22 @@ window.initialisiereZeitungsbuch = function () {
   flip.loadFromHTML(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite")
   );
+
+  /*
+   * `showCover` hält erste und letzte Seite einzeln, setzt sie intern aber wie
+   * feste Buchdeckel. Für eine Zeitung werden beide wieder weich geschaltet.
+   */
+  const geladeneSeiten = flip.getPageCollection().getPages();
+  const setzeSeiteWeich = function (seite) {
+    if (!seite) {
+      return;
+    }
+    seite.setDensity("soft");
+    seite.setDrawingDensity("soft");
+  };
+
+  setzeSeiteWeich(geladeneSeiten[0]);
+  setzeSeiteWeich(geladeneSeiten[geladeneSeiten.length - 1]);
 
   const blaettersteuerung = flip.getFlipController();
   const renderer = flip.getRender();
@@ -823,7 +858,7 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "Twine Zeitung V0.1_assets/blaettern.m4a?v=02.10"
+    "assets/blaettern.m4a?v=02.12"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
@@ -931,6 +966,80 @@ window.initialisiereZeitungsbuch = function () {
     ) {
       spielePapiergeraeusch("abschluss");
     }
+  });
+
+  /*
+   * Blättert mit einzelnen sichtbaren Blattwechseln zur PDF-Seite 9. Die
+   * Sichtprüfung funktioniert in Portrait- und Doppelseitenansicht gleich.
+   */
+  let automatischesBlaettern = false;
+  const raetselSeitenIndex = 8;
+  const raetselBild = seitenbilder[raetselSeitenIndex];
+
+  const istRaetselseiteSichtbar = function () {
+    if (!raetselBild) {
+      return false;
+    }
+
+    const bildRechteck = raetselBild.getBoundingClientRect();
+    const buehnenRechteck = buehne.getBoundingClientRect();
+
+    return bildRechteck.width > 1 &&
+      bildRechteck.height > 1 &&
+      bildRechteck.right > buehnenRechteck.left &&
+      bildRechteck.left < buehnenRechteck.right &&
+      bildRechteck.bottom > buehnenRechteck.top &&
+      bildRechteck.top < buehnenRechteck.bottom;
+  };
+
+  const beendeAutomatischesBlaettern = function () {
+    automatischesBlaettern = false;
+    raetselknopf.disabled = false;
+    raetselknopf.textContent = "Zum Rätsel";
+  };
+
+  const blaettereSchrittweiseZumRaetsel = function (schritt) {
+    if (
+      !automatischesBlaettern ||
+      istRaetselseiteSichtbar() ||
+      schritt >= flip.getPageCount()
+    ) {
+      beendeAutomatischesBlaettern();
+      return;
+    }
+
+    const vorwaerts =
+      flip.getCurrentPageIndex() < raetselSeitenIndex;
+
+    // Programmgesteuertes Blättern benötigt im Portraitmodus eigenen Ton.
+    if (flip.getOrientation() === "portrait") {
+      spielePapiergeraeusch("abschluss");
+    }
+
+    if (vorwaerts) {
+      flip.flipNext("top");
+    } else {
+      flip.flipPrev("top");
+    }
+
+    window.setTimeout(function () {
+      blaettereSchrittweiseZumRaetsel(schritt + 1);
+    }, flip.getSettings().flippingTime + 120);
+  };
+
+  raetselknopf.addEventListener("click", function () {
+    if (automatischesBlaettern) {
+      return;
+    }
+
+    zoomFaktor = minimalerZoom;
+    zoomVersatzX = 0;
+    zoomVersatzY = 0;
+    zeichneZoom();
+    automatischesBlaettern = true;
+    raetselknopf.disabled = true;
+    raetselknopf.textContent = "Blättere ...";
+    blaettereSchrittweiseZumRaetsel(0);
   });
 
   // Bereitet beim Vorwärtsblättern die sichtbare Innenseite des Blatts vor.
@@ -1452,18 +1561,26 @@ $(document).on(":passagedisplay", function () {
 </script><tw-passagedata pid="1" name="Unbenannter Abschnitt" tags="" position="800,400" size="100,100">&lt;div class=&quot;zeitung-app&quot; id=&quot;zeitung-app&quot;&gt;
   &lt;main class=&quot;buch-buehne&quot;&gt;
     &lt;div id=&quot;zeitungsbuch&quot;&gt;
-      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;
-        &lt;img src=&quot;Twine Zeitung V0.1_assets/seite-1.jpg&quot; alt=&quot;Titelseite der Gewohnheitstiere Zeitung&quot;&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;
-        &lt;img src=&quot;Twine Zeitung V0.1_assets/seite-2.jpg&quot; alt=&quot;Zeitungsseite 2&quot;&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;
-        &lt;img src=&quot;Twine Zeitung V0.1_assets/seite-3.jpg&quot; alt=&quot;Zeitungsseite 3&quot;&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;
-        &lt;img src=&quot;Twine Zeitung V0.1_assets/seite-4.jpg&quot; alt=&quot;Zeitungsseite 4&quot;&gt;
-      &lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-01.jpg&quot; alt=&quot;Ausgabe 23 - Seite 1&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-02.jpg&quot; alt=&quot;Ausgabe 23 - Seite 2&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-03.jpg&quot; alt=&quot;Ausgabe 23 - Seite 3&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-04.jpg&quot; alt=&quot;Ausgabe 23 - Seite 4&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-05.jpg&quot; alt=&quot;Ausgabe 23 - Seite 5&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-06.jpg&quot; alt=&quot;Ausgabe 23 - Seite 6&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-07.jpg&quot; alt=&quot;Ausgabe 23 - Seite 7&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-08.jpg&quot; alt=&quot;Ausgabe 23 - Seite 8&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-09.jpg&quot; alt=&quot;Ausgabe 23 - Seite 9&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-10.jpg&quot; alt=&quot;Ausgabe 23 - Seite 10&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-11.jpg&quot; alt=&quot;Ausgabe 23 - Seite 11&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-12.jpg&quot; alt=&quot;Ausgabe 23 - Seite 12&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-13.jpg&quot; alt=&quot;Ausgabe 23 - Seite 13&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-14.jpg&quot; alt=&quot;Ausgabe 23 - Seite 14&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-15.jpg&quot; alt=&quot;Ausgabe 23 - Seite 15&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-16.jpg&quot; alt=&quot;Ausgabe 23 - Seite 16&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-17.jpg&quot; alt=&quot;Ausgabe 23 - Seite 17&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-18.jpg&quot; alt=&quot;Ausgabe 23 - Seite 18&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-19.jpg&quot; alt=&quot;Ausgabe 23 - Seite 19&quot;&gt;&lt;/div&gt;
+      &lt;div class=&quot;zeitungsseite&quot; data-density=&quot;soft&quot;&gt;&lt;img src=&quot;assets/seite-20.jpg&quot; alt=&quot;Ausgabe 23 - Seite 20&quot;&gt;&lt;/div&gt;
     &lt;/div&gt;
   &lt;/main&gt;
 &lt;/div&gt;
