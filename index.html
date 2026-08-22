@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="assets/page-flip.browser.min.js?v=03.05"></script>
+	<script src="assets/page-flip.browser.min.js?v=03.06"></script>
 	<tw-storydata name="Wild am Sonntag - Ausgabe 23" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -569,7 +569,7 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "V03.05";
+  versionsanzeige.textContent = "V03.06";
 
   // Dieser Knopf bleibt wie die Versionsanzeige außerhalb der Blätterfläche.
   let raetselknopf = document.getElementById("raetselknopf");
@@ -1278,7 +1278,7 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "assets/blaettern.m4a?v=03.05"
+    "assets/blaettern.m4a?v=03.06"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
@@ -1760,6 +1760,7 @@ window.initialisiereZeitungsbuch = function () {
    */
   let direktesFingerziehen = null;
   let zweiFingerZoom = null;
+  let zoomBeruehrungAktiv = false;
   let fingerVerschieben = null;
   const richtungsSchwelle = 7;
 
@@ -1783,6 +1784,15 @@ window.initialisiereZeitungsbuch = function () {
     const punktX = mittelpunkt.x - buehnenRechteck.left;
     const punktY = mittelpunkt.y - buehnenRechteck.top;
 
+    /*
+     * Der erste Finger kann bei 100 Prozent bereits einen Bibliothekszug
+     * begonnen haben. Sobald der zweite Finger erscheint, wird dieser Zug
+     * ohne Blätterentscheidung beendet und bis zum letzten Loslassen gesperrt.
+     */
+    if (typeof flip.userStop === "function") {
+      flip.userStop(mittelpunkt, true);
+    }
+    zoomBeruehrungAktiv = true;
     zweiFingerZoom = {
       startAbstand: Math.max(1, fingerAbstand(fingerA, fingerB)),
       startZoom: zoomFaktor,
@@ -1805,6 +1815,14 @@ window.initialisiereZeitungsbuch = function () {
         ereignis.touches[0],
         ereignis.touches[1]
       );
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
+    if (zoomBeruehrungAktiv) {
+      direktesFingerziehen = null;
+      fingerVerschieben = null;
       ereignis.preventDefault();
       ereignis.stopImmediatePropagation();
       return;
@@ -1896,6 +1914,15 @@ window.initialisiereZeitungsbuch = function () {
       return;
     }
 
+    /* Nach einem Pinch bleibt auch der letzte Finger reine Zoomberührung. */
+    if (zoomBeruehrungAktiv) {
+      direktesFingerziehen = null;
+      fingerVerschieben = null;
+      ereignis.preventDefault();
+      ereignis.stopImmediatePropagation();
+      return;
+    }
+
     if (
       fingerVerschieben &&
       ereignis.changedTouches.length > 0
@@ -1977,9 +2004,10 @@ window.initialisiereZeitungsbuch = function () {
 
   // Übergibt beim Loslassen an dieselbe Abschlusslogik wie die Maussteuerung.
   const beendeDirektesFingerziehen = function (ereignis) {
-    if (zweiFingerZoom) {
-      if (ereignis.touches.length < 2) {
+    if (zoomBeruehrungAktiv) {
+      if (ereignis.touches.length === 0) {
         zweiFingerZoom = null;
+        zoomBeruehrungAktiv = false;
       }
       fingerVerschieben = null;
       direktesFingerziehen = null;
