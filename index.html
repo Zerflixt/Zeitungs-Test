@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="assets/page-flip.browser.min.js?v=02.12"></script>
+	<script src="assets/page-flip.browser.min.js?v=02.29"></script>
 	<tw-storydata name="Wild am Sonntag - Ausgabe 23" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -312,6 +312,26 @@ body {
   opacity: .48;
 }
 
+/* Zeichnet Seite 2 nur im noch nicht vom Cover überrollten Bereich nach. */
+.deckblatt-folgeseite-kopie {
+  position: absolute;
+  display: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 2;
+  background: transparent;
+  pointer-events: none;
+}
+
+.deckblatt-folgeseite-kopie img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  object-fit: contain;
+}
+
 .steuerung {
   display: flex;
   flex-wrap: wrap;
@@ -510,7 +530,7 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V02.12";
+  versionsanzeige.textContent = "Version V02.29 EXPERIMENT";
 
   // Dieser Knopf bleibt wie die Versionsanzeige außerhalb der Blätterfläche.
   let raetselknopf = document.getElementById("raetselknopf");
@@ -609,6 +629,18 @@ window.initialisiereZeitungsbuch = function () {
   const seitenbilder = Array.from(
     document.querySelectorAll("#zeitungsbuch .zeitungsseite img")
   );
+  const deckblattFolgeseite = seitenbilder[1]
+    ? seitenbilder[1].closest(".zeitungsseite")
+    : null;
+  const deckblattFolgeseiteBild = seitenbilder[1] || null;
+  let deckblattFolgeseiteKopie = null;
+  let deckblattFolgeseiteKopieBild = null;
+  const schlussblattVorherigeSeiteBild =
+    seitenbilder[seitenbilder.length - 2] || null;
+  let schlussblattVorherigeSeiteKopie = null;
+  let schlussblattVorherigeSeiteKopieBild = null;
+  let schlussblattAbbruchWartetAufWiederherstellung = false;
+  let deckblattFolgeseiteBeschnitten = false;
   let bewegteRueckseite = null;
   let rueckseitenAufraeumenTimer = null;
   let eigeneRueckseite = null;
@@ -724,6 +756,7 @@ window.initialisiereZeitungsbuch = function () {
       // Android benötigt nach dem Drehen gelegentlich noch einen zweiten Takt.
       window.requestAnimationFrame(function () {
         flip.update();
+
         zeichneZoom();
       });
     }, 180);
@@ -763,10 +796,98 @@ window.initialisiereZeitungsbuch = function () {
     return eigeneRueckseite;
   };
 
+  // Erstellt die nur während des Cover-Schließens benötigte Kopie von Seite 2.
+  const holeDeckblattFolgeseiteKopie = function () {
+    if (!deckblattFolgeseiteKopie) {
+      deckblattFolgeseiteKopie = document.createElement("div");
+      deckblattFolgeseiteKopie.className =
+        "deckblatt-folgeseite-kopie";
+      deckblattFolgeseiteKopieBild = document.createElement("img");
+      deckblattFolgeseiteKopieBild.src = deckblattFolgeseiteBild.src;
+      deckblattFolgeseiteKopieBild.alt = "Seite 2 beim Schließen";
+      deckblattFolgeseiteKopie.appendChild(
+        deckblattFolgeseiteKopieBild
+      );
+      seitenebene.appendChild(deckblattFolgeseiteKopie);
+    }
+
+    return deckblattFolgeseiteKopie;
+  };
+
+  // Erstellt die spiegelbildliche Kopie der vorletzten Druckseite.
+  const holeSchlussblattVorherigeSeiteKopie = function () {
+    if (!schlussblattVorherigeSeiteKopie) {
+      schlussblattVorherigeSeiteKopie = document.createElement("div");
+      schlussblattVorherigeSeiteKopie.className =
+        "deckblatt-folgeseite-kopie";
+      schlussblattVorherigeSeiteKopieBild =
+        document.createElement("img");
+      schlussblattVorherigeSeiteKopieBild.src =
+        schlussblattVorherigeSeiteBild.src;
+      schlussblattVorherigeSeiteKopieBild.alt =
+        "Vorletzte Seite beim Schließen";
+      schlussblattVorherigeSeiteKopie.appendChild(
+        schlussblattVorherigeSeiteKopieBild
+      );
+      seitenebene.appendChild(schlussblattVorherigeSeiteKopie);
+    }
+
+    return schlussblattVorherigeSeiteKopie;
+  };
+
+  // Entfernt den Ausschnitt wieder, sobald das Deckblatt ruht.
+  const stelleDeckblattFolgeseiteWiederHer = function () {
+    if (deckblattFolgeseite) {
+      deckblattFolgeseite.style.clipPath = "";
+      deckblattFolgeseite.style.webkitClipPath = "";
+      deckblattFolgeseite.style.removeProperty("background");
+      deckblattFolgeseite.style.removeProperty("opacity");
+    }
+    if (deckblattFolgeseiteBild) {
+      deckblattFolgeseiteBild.style.removeProperty("clip-path");
+      deckblattFolgeseiteBild.style.removeProperty("-webkit-clip-path");
+    }
+    if (deckblattFolgeseiteKopie) {
+      deckblattFolgeseiteKopie.style.display = "none";
+      deckblattFolgeseiteKopie.style.clipPath = "";
+      deckblattFolgeseiteKopie.style.webkitClipPath = "";
+    }
+    if (schlussblattVorherigeSeiteKopie) {
+      schlussblattVorherigeSeiteKopie.style.display = "none";
+      schlussblattVorherigeSeiteKopie.style.clipPath = "";
+      schlussblattVorherigeSeiteKopie.style.webkitClipPath = "";
+    }
+    deckblattFolgeseiteBeschnitten = false;
+  };
+
   flip.on("changeState", function (ereignis) {
-    if (ereignis.data === "read" && eigeneRueckseite) {
-      window.clearTimeout(eigeneRueckseiteAufraeumenTimer);
-      eigeneRueckseite.style.display = "none";
+    if (ereignis.data === "read") {
+      stelleDeckblattFolgeseiteWiederHer();
+
+      /*
+       * Nach einem abgebrochenen Cover-Schließen bleibt die Zeitung geöffnet.
+       * Die am Bewegungsanfang entfernte linke Render-Seite muss dann wieder
+       * ausdrücklich auf Seite 2 gesetzt werden.
+       */
+      if (
+        flip.getOrientation() === "landscape" &&
+        flip.getCurrentPageIndex() === 1
+      ) {
+        renderer.setLeftPage(geladeneSeiten[1]);
+      }
+
+      /* Entsprechende Wiederherstellung nach erkanntem Abbruch am Ende. */
+      if (schlussblattAbbruchWartetAufWiederherstellung) {
+        renderer.setRightPage(
+          geladeneSeiten[geladeneSeiten.length - 2]
+        );
+        schlussblattAbbruchWartetAufWiederherstellung = false;
+      }
+
+      if (eigeneRueckseite) {
+        window.clearTimeout(eigeneRueckseiteAufraeumenTimer);
+        eigeneRueckseite.style.display = "none";
+      }
     }
   });
 
@@ -777,6 +898,182 @@ window.initialisiereZeitungsbuch = function () {
   // Zeichnet die eigene Rückseitenmaske entlang der berechneten Faltkante.
   blaettersteuerung.do = function (punkt) {
     const ergebnis = urspruenglichesZeichnen(punkt);
+
+    /*
+     * Beim Zurückschließen des Covers bleibt Seite 2 als linke Unterseite
+     * liegen. Sie wird entlang derselben Biegelinie beschnitten, sodass links
+     * davon sofort wieder der echte Bühnenhintergrund sichtbar wird.
+     */
+    if (
+      flip.getOrientation() === "landscape" &&
+      this.calc !== null &&
+      this.calc.getDirection() === 1 &&
+      flip.getCurrentPageIndex() <= 1 &&
+      deckblattFolgeseite
+    ) {
+      const deckblattEcke = this.calc.getCorner();
+      const deckblattErsterSchnitt = deckblattEcke === "bottom"
+        ? this.calc.bottomIntersectPoint
+        : this.calc.topIntersectPoint;
+      const deckblattZweiterSchnitt = this.calc.sideIntersectPoint ||
+        (deckblattEcke === "bottom"
+          ? this.calc.topIntersectPoint
+          : this.calc.bottomIntersectPoint);
+
+      if (deckblattErsterSchnitt && deckblattZweiterSchnitt) {
+        const deckblattGrenzen = renderer.getRect();
+        const deckblattBreite = deckblattGrenzen.pageWidth;
+        const deckblattHoehe = deckblattGrenzen.height;
+        const deckblattErsterX = Math.max(0, Math.min(
+          deckblattBreite,
+          deckblattBreite - deckblattErsterSchnitt.x
+        ));
+        const deckblattZweiterX = Math.max(0, Math.min(
+          deckblattBreite,
+          deckblattBreite - deckblattZweiterSchnitt.x
+        ));
+        const deckblattErsterY = Math.max(0, Math.min(
+          deckblattHoehe,
+          deckblattErsterSchnitt.y
+        ));
+        const deckblattZweiterY = Math.max(0, Math.min(
+          deckblattHoehe,
+          deckblattZweiterSchnitt.y
+        ));
+        const sichtbaresPolygon = deckblattEcke === "bottom"
+          ? "polygon(" +
+            "0px 0px, " +
+            deckblattBreite + "px 0px, " +
+            deckblattBreite + "px " + deckblattHoehe + "px, " +
+            deckblattErsterX + "px " + deckblattErsterY + "px, " +
+            deckblattZweiterX + "px " + deckblattZweiterY + "px" +
+            ")"
+          : "polygon(" +
+            deckblattErsterX + "px " + deckblattErsterY + "px, " +
+            deckblattBreite + "px 0px, " +
+            deckblattBreite + "px " + deckblattHoehe + "px, " +
+            "0px " + deckblattHoehe + "px, " +
+            deckblattZweiterX + "px " + deckblattZweiterY + "px" +
+            ")";
+
+        const sichtbareSeiteZwei = holeDeckblattFolgeseiteKopie();
+        sichtbareSeiteZwei.style.display = "block";
+        sichtbareSeiteZwei.style.left = deckblattGrenzen.left + "px";
+        sichtbareSeiteZwei.style.top = deckblattGrenzen.top + "px";
+        sichtbareSeiteZwei.style.width = deckblattBreite + "px";
+        sichtbareSeiteZwei.style.height = deckblattHoehe + "px";
+        sichtbareSeiteZwei.style.clipPath = sichtbaresPolygon;
+        sichtbareSeiteZwei.style.webkitClipPath = sichtbaresPolygon;
+
+        /*
+         * Die Bibliothek zeichnet den sichtbaren Seiteninhalt im Kindbild.
+         * Deshalb wird nicht nur die Hülle, sondern ausdrücklich auch dieses
+         * Bild beschnitten. Der weiße Standardgrund darf nicht durchscheinen.
+         */
+        deckblattFolgeseite.style.setProperty(
+          "clip-path",
+          sichtbaresPolygon,
+          "important"
+        );
+        deckblattFolgeseite.style.setProperty(
+          "-webkit-clip-path",
+          sichtbaresPolygon,
+          "important"
+        );
+        deckblattFolgeseite.style.setProperty(
+          "background",
+          "transparent",
+          "important"
+        );
+        if (deckblattFolgeseiteBild) {
+          deckblattFolgeseiteBild.style.setProperty(
+            "clip-path",
+            sichtbaresPolygon,
+            "important"
+          );
+          deckblattFolgeseiteBild.style.setProperty(
+            "-webkit-clip-path",
+            sichtbaresPolygon,
+            "important"
+          );
+        }
+        deckblattFolgeseiteBeschnitten = true;
+      }
+    }
+
+    /*
+     * Am Zeitungsende wird die vorletzte Seite spiegelbildlich auf der rechten
+     * Buchhälfte nachgezeichnet. Sichtbar bleibt nur der noch nicht von der
+     * letzten Seite überrollte Bereich neben der Biegelinie.
+     */
+    if (
+      flip.getOrientation() === "landscape" &&
+      this.calc !== null &&
+      geladeneSeiten.indexOf(this.flippingPage) ===
+        geladeneSeiten.length - 1 &&
+      schlussblattVorherigeSeiteBild
+    ) {
+      const schlussEcke = this.calc.getCorner();
+      const schlussErsterSchnitt = schlussEcke === "bottom"
+        ? this.calc.bottomIntersectPoint
+        : this.calc.topIntersectPoint;
+      const schlussZweiterSchnitt = this.calc.sideIntersectPoint ||
+        (schlussEcke === "bottom"
+          ? this.calc.topIntersectPoint
+          : this.calc.bottomIntersectPoint);
+
+      if (schlussErsterSchnitt && schlussZweiterSchnitt) {
+        const schlussGrenzen = renderer.getRect();
+        const schlussBreite = schlussGrenzen.pageWidth;
+        const schlussHoehe = schlussGrenzen.height;
+        const schlussErsterX = Math.max(0, Math.min(
+          schlussBreite,
+          schlussErsterSchnitt.x
+        ));
+        const schlussZweiterX = Math.max(0, Math.min(
+          schlussBreite,
+          schlussZweiterSchnitt.x
+        ));
+        const schlussErsterY = Math.max(0, Math.min(
+          schlussHoehe,
+          schlussErsterSchnitt.y
+        ));
+        const schlussZweiterY = Math.max(0, Math.min(
+          schlussHoehe,
+          schlussZweiterSchnitt.y
+        ));
+        const schlussPolygon = schlussEcke === "bottom"
+          ? "polygon(" +
+            "0px 0px, " +
+            schlussBreite + "px 0px, " +
+            schlussZweiterX + "px " + schlussZweiterY + "px, " +
+            schlussErsterX + "px " + schlussErsterY + "px, " +
+            "0px " + schlussHoehe + "px" +
+            ")"
+          : "polygon(" +
+            "0px 0px, " +
+            schlussErsterX + "px " + schlussErsterY + "px, " +
+            schlussZweiterX + "px " + schlussZweiterY + "px, " +
+            schlussBreite + "px " + schlussHoehe + "px, " +
+            "0px " + schlussHoehe + "px" +
+            ")";
+        const sichtbareVorletzteSeite =
+          holeSchlussblattVorherigeSeiteKopie();
+
+        sichtbareVorletzteSeite.style.display = "block";
+        sichtbareVorletzteSeite.style.left =
+          schlussGrenzen.left + schlussBreite + "px";
+        sichtbareVorletzteSeite.style.top =
+          schlussGrenzen.top + "px";
+        sichtbareVorletzteSeite.style.width =
+          schlussBreite + "px";
+        sichtbareVorletzteSeite.style.height =
+          schlussHoehe + "px";
+        sichtbareVorletzteSeite.style.clipPath = schlussPolygon;
+        sichtbareVorletzteSeite.style.webkitClipPath =
+          schlussPolygon;
+      }
+    }
 
     if (
       flip.getOrientation() !== "portrait" ||
@@ -858,7 +1155,7 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "assets/blaettern.m4a?v=02.12"
+    "assets/blaettern.m4a?v=02.29"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
@@ -1046,7 +1343,42 @@ window.initialisiereZeitungsbuch = function () {
   blaettersteuerung.start = function (punkt) {
     window.clearTimeout(rueckseitenAufraeumenTimer);
     stelleBewegteRueckseiteWiederHer();
+    stelleDeckblattFolgeseiteWiederHer();
     const gestartet = urspruenglicherStart(punkt);
+
+    /*
+     * V02.20 DIAGNOSE: Die Bibliothek entfernt ihre linke Render-Seite sonst
+     * erst nach dem fertigen Zurückblättern. Beim Cover geschieht das nun
+     * unmittelbar am Anfang derselben Bewegung.
+     */
+    if (
+      gestartet &&
+      flip.getOrientation() === "landscape" &&
+      this.calc !== null &&
+      this.calc.getDirection() === 1 &&
+      flip.getCurrentPageIndex() <= 1 &&
+      deckblattFolgeseite
+    ) {
+      renderer.setLeftPage(null);
+    }
+
+    /*
+     * Spiegelbildlicher Diagnoseschritt am Zeitungsende: Wird die wirklich
+     * letzte Seite zurückgeschlossen, verschwindet die rechte Render-Seite
+     * mit der vorletzten Druckseite sofort statt erst nach der Animation.
+     */
+    const bewegteSeitenNummer = geladeneSeiten.indexOf(
+      this.flippingPage
+    );
+    if (
+      gestartet &&
+      flip.getOrientation() === "landscape" &&
+      bewegteSeitenNummer === geladeneSeiten.length - 1
+    ) {
+      // Ein neuer Versuch ersetzt immer den Status des vorherigen Versuchs.
+      schlussblattAbbruchWartetAufWiederherstellung = false;
+      renderer.setRightPage(null);
+    }
 
     if (
       gestartet &&
@@ -1134,6 +1466,20 @@ window.initialisiereZeitungsbuch = function () {
     const blaetterRichtung = this.calc.getDirection();
     const wirdUmgeblaettert =
       position.x <= frueheBlaetterschwelle;
+
+    /*
+     * Nur die echte Schlussseite benötigt diese Sonderbehandlung: Wenn sie
+     * nach dem Loslassen zurückfedert, bleibt die Zeitung offen. Deshalb muss
+     * die zu Beginn entfernte vorletzte Seite anschließend wieder erscheinen.
+     */
+    const istSchlussblatt =
+      flip.getOrientation() === "landscape" &&
+      geladeneSeiten.indexOf(this.flippingPage) ===
+        geladeneSeiten.length - 1;
+    if (istSchlussblatt) {
+      schlussblattAbbruchWartetAufWiederherstellung =
+        !wirdUmgeblaettert;
+    }
 
     spielePapiergeraeusch(
       wirdUmgeblaettert ? "abschluss" : "zurueck"
