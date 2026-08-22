@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="assets/page-flip.browser.min.js?v=03.01"></script>
+	<script src="assets/page-flip.browser.min.js?v=03.02"></script>
 	<tw-storydata name="Wild am Sonntag - Ausgabe 23" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -143,6 +143,11 @@ body {
   justify-content: flex-start;
   gap: 0;
   padding: 0 12px 12px;
+}
+
+/* Twine wandelt die Formatierungszeilen um den Inhalt sonst in Leerzeilen um. */
+.zeitung-app > br {
+  display: none;
 }
 
 .versionsebene {
@@ -544,7 +549,7 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "Version V03.01 EXPERIMENT";
+  versionsanzeige.textContent = "V03.02";
 
   // Dieser Knopf bleibt wie die Versionsanzeige außerhalb der Blätterfläche.
   let raetselknopf = document.getElementById("raetselknopf");
@@ -1253,7 +1258,7 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "assets/blaettern.m4a?v=03.01"
+    "assets/blaettern.m4a?v=03.02"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
