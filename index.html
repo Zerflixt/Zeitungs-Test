@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="assets/page-flip.browser.min.js?v=03.03"></script>
+	<script src="assets/page-flip.browser.min.js?v=03.04"></script>
 	<tw-storydata name="Wild am Sonntag - Ausgabe 23" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -146,7 +146,8 @@ body {
 }
 
 /* Twine wandelt die Formatierungszeilen um den Inhalt sonst in Leerzeilen um. */
-.zeitung-app > br {
+.zeitung-app > br,
+#zeitungsbuch > br {
   display: none;
 }
 
@@ -248,7 +249,7 @@ body {
 .buch-buehne {
   display: flex;
   box-sizing: border-box;
-  width: min(1190px, calc(100vw - 24px));
+  width: calc(100vw - 24px);
   height: calc(100vh - 54px);
   height: calc(100dvh - 54px);
   align-items: flex-start;
@@ -472,7 +473,9 @@ window.initialisiereZeitungsbuch = function () {
   // Berechnet die Seitengröße auch nach einem Drehen des Smartphones neu.
   const berechneSeitenmasse = function () {
     const smartphone = window.matchMedia("(max-width: 680px)").matches;
-    const ausgangsbreite = buehne.clientWidth || window.innerWidth;
+    const ausgangsbreite = smartphone
+      ? (buehne.clientWidth || window.innerWidth)
+      : Math.max(180, window.innerWidth - 24);
     const buehnenStil = window.getComputedStyle(buehne);
     const buehnenInnenabstandOben =
       parseFloat(buehnenStil.paddingTop) || 0;
@@ -485,17 +488,34 @@ window.initialisiereZeitungsbuch = function () {
         buehnenInnenabstandUnten
     );
     const verfuegbareBreite = Math.max(180, ausgangsbreite - 8);
-    const verfuegbareHoehe = Math.max(180, ausgangshoehe - 8);
+    // Auf dem PC bleibt bewusst Platz für eine spätere untere Buttonleiste.
+    const untererFreiraum = smartphone ? 8 : 50;
+    const verfuegbareHoehe = Math.max(
+      180,
+      ausgangshoehe - untererFreiraum
+    );
     const maximaleSeitenbreite = smartphone
       ? verfuegbareBreite
       : verfuegbareBreite / 2;
+    const festeSeitenobergrenze = smartphone ? 595 : Infinity;
     const breite = Math.floor(
       Math.min(
-        595,
+        festeSeitenobergrenze,
         maximaleSeitenbreite,
         verfuegbareHoehe * seitenverhaeltnis
       )
     );
+
+    /*
+     * autoSize darf die berechnete Doppelseite nicht wieder bis auf die volle
+     * Fensterbreite aufblasen. Die Bühne folgt deshalb am PC exakt der Breite
+     * des aus Höhe und Breite berechneten Zeitungsbogens.
+     */
+    if (!smartphone) {
+      buehne.style.width = Math.floor(breite * 2) + "px";
+    } else {
+      buehne.style.width = "";
+    }
 
     return {
       breite: breite,
@@ -549,7 +569,7 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "V03.03";
+  versionsanzeige.textContent = "V03.04";
 
   // Dieser Knopf bleibt wie die Versionsanzeige außerhalb der Blätterfläche.
   let raetselknopf = document.getElementById("raetselknopf");
@@ -1258,7 +1278,7 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "assets/blaettern.m4a?v=03.03"
+    "assets/blaettern.m4a?v=03.04"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
