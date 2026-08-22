@@ -104,7 +104,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 		<div id="init-lacking"><p>Browser lacks capabilities required to play.</p><p>Upgrade or switch to another browser.</p></div>
 		<div id="init-loading"><div>Loading&hellip;</div></div>
 	</div>
-	<script src="assets/page-flip.browser.min.js?v=03.04"></script>
+	<script src="assets/page-flip.browser.min.js?v=03.05"></script>
 	<tw-storydata name="Wild am Sonntag - Ausgabe 23" startnode="1" creator="Twine" creator-version="2.10.0" format="SugarCube" format-version="2.37.3" ifid="200023E1-4217-4C34-942E-1B7929379964" options="" tags="" zoom="1" hidden><style role="stylesheet" id="twine-user-stylesheet" type="text/twine-css">:root {
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -569,7 +569,7 @@ window.initialisiereZeitungsbuch = function () {
   if (versionsanzeige.parentNode !== versionsebene) {
     versionsebene.appendChild(versionsanzeige);
   }
-  versionsanzeige.textContent = "V03.04";
+  versionsanzeige.textContent = "V03.05";
 
   // Dieser Knopf bleibt wie die Versionsanzeige außerhalb der Blätterfläche.
   let raetselknopf = document.getElementById("raetselknopf");
@@ -1278,7 +1278,7 @@ window.initialisiereZeitungsbuch = function () {
    * Variationen verhindern, dass jedes Umblättern völlig identisch klingt.
    */
   const papierKlangVorlage = new Audio(
-    "assets/blaettern.m4a?v=03.04"
+    "assets/blaettern.m4a?v=03.05"
   );
   papierKlangVorlage.preload = "auto";
   let aktiverBlaetterton = null;
@@ -1388,10 +1388,7 @@ window.initialisiereZeitungsbuch = function () {
     }
   });
 
-  /*
-   * Blättert mit einzelnen sichtbaren Blattwechseln zur PDF-Seite 9. Die
-   * Sichtprüfung funktioniert in Portrait- und Doppelseitenansicht gleich.
-   */
+  /* Springt mit genau einer sichtbaren Blätteranimation zur PDF-Seite 9. */
   let automatischesBlaettern = false;
   const raetselSeitenIndex = 8;
   const raetselBild = seitenbilder[raetselSeitenIndex];
@@ -1418,32 +1415,28 @@ window.initialisiereZeitungsbuch = function () {
     raetselknopf.textContent = "Zum Rätsel";
   };
 
-  const blaettereSchrittweiseZumRaetsel = function (schritt) {
+  const blaettereEinmalZumRaetsel = function () {
     if (
       !automatischesBlaettern ||
-      istRaetselseiteSichtbar() ||
-      schritt >= flip.getPageCount()
+      istRaetselseiteSichtbar()
     ) {
       beendeAutomatischesBlaettern();
       return;
     }
-
-    const vorwaerts =
-      flip.getCurrentPageIndex() < raetselSeitenIndex;
 
     // Programmgesteuertes Blättern benötigt im Portraitmodus eigenen Ton.
     if (flip.getOrientation() === "portrait") {
       spielePapiergeraeusch("abschluss");
     }
 
-    if (vorwaerts) {
-      flip.flipNext("top");
-    } else {
-      flip.flipPrev("top");
-    }
+    /*
+     * flip(ziel) setzt intern den Zielbogen ein und blättert anschließend nur
+     * ein einziges sichtbares Blatt darüber. turnToPage wäre ohne Animation.
+     */
+    flip.flip(raetselSeitenIndex, "top");
 
     window.setTimeout(function () {
-      blaettereSchrittweiseZumRaetsel(schritt + 1);
+      beendeAutomatischesBlaettern();
     }, flip.getSettings().flippingTime + 120);
   };
 
@@ -1459,7 +1452,7 @@ window.initialisiereZeitungsbuch = function () {
     automatischesBlaettern = true;
     raetselknopf.disabled = true;
     raetselknopf.textContent = "Blättere ...";
-    blaettereSchrittweiseZumRaetsel(0);
+    blaettereEinmalZumRaetsel();
   });
 
   // Bereitet beim Vorwärtsblättern die sichtbare Innenseite des Blatts vor.
